@@ -56,7 +56,7 @@ public class MicrometerTracingGymApplication {
         server.createContext("/function", exchange -> {
             try (OutputStream os = exchange.getResponseBody()) {
                 Span parent = bridgeTracer.nextSpan().name("function.parent");
-                try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(parent.start())) {
+                try (Tracer.SpanInScope parentScope = bridgeTracer.withSpan(parent.start())) {
                     bridgeTracer.createBaggage("baggage.parent", "value.parent");
                     System.out.println("Baggage in scope: " + bridgeTracer.getBaggage("baggage.parent").get());
 
@@ -66,7 +66,7 @@ public class MicrometerTracingGymApplication {
                     parent.event("event.parent3");
 
                     Span foo = bridgeTracer.nextSpan(parent).name("function.foo");
-                    try (Tracer.SpanInScope barScope = bridgeTracer.withSpan(foo.start())) {
+                    try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(foo.start())) {
                         foo.tag("key.foo", "value.foo");
                         foo.event("event.foo");
 
