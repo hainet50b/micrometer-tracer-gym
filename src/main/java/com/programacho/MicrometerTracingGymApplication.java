@@ -55,47 +55,47 @@ public class MicrometerTracingGymApplication {
         final Random random = new Random();
         server.createContext("/function", exchange -> {
             try (OutputStream os = exchange.getResponseBody()) {
-                Span parent = bridgeTracer.nextSpan().name("function.parent");
-                try (Tracer.SpanInScope parentScope = bridgeTracer.withSpan(parent.start())) {
+                Span parentSpan = bridgeTracer.nextSpan().name("function.parent");
+                try (Tracer.SpanInScope parentScope = bridgeTracer.withSpan(parentSpan.start())) {
                     bridgeTracer.createBaggage("baggage.parent", "value.parent");
                     System.out.println("Baggage in scope: " + bridgeTracer.getBaggage("baggage.parent").get());
 
-                    parent.tag("key.parent", "value.parent");
-                    parent.event("event.parent1");
-                    parent.event("event.parent2");
-                    parent.event("event.parent3");
+                    parentSpan.tag("key.parent", "value.parent");
+                    parentSpan.event("event.parent1");
+                    parentSpan.event("event.parent2");
+                    parentSpan.event("event.parent3");
 
-                    Span foo = bridgeTracer.nextSpan(parent).name("function.foo");
-                    try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(foo.start())) {
-                        foo.tag("key.foo", "value.foo");
-                        foo.event("event.foo");
+                    Span fooSpan = bridgeTracer.nextSpan(parentSpan).name("function.foo");
+                    try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(fooSpan.start())) {
+                        fooSpan.tag("key.foo", "value.foo");
+                        fooSpan.event("event.foo");
 
                         sleep(random.nextInt(1_000));
                     } finally {
-                        foo.end();
+                        fooSpan.end();
                     }
 
-                    Span bar = bridgeTracer.nextSpan(parent).name("function.bar");
-                    try (Tracer.SpanInScope barScope = bridgeTracer.withSpan(bar.start())) {
-                        bar.tag("key.bar", "value.bar");
-                        bar.event("event.bar");
+                    Span barSpan = bridgeTracer.nextSpan(parentSpan).name("function.bar");
+                    try (Tracer.SpanInScope barScope = bridgeTracer.withSpan(barSpan.start())) {
+                        barSpan.tag("key.bar", "value.bar");
+                        barSpan.event("event.bar");
 
                         sleep(random.nextInt(1_000));
 
                         throw new RuntimeException("exception.bar");
                     } catch (RuntimeException e) {
-                        bar.error(e);
+                        barSpan.error(e);
                     } finally {
-                        bar.end();
+                        barSpan.end();
                     }
                 } finally {
-                    parent.end();
+                    parentSpan.end();
                 }
 
                 System.out.println("Baggage out of scope: " + bridgeTracer.getBaggage("baggage.parent").get());
-                System.out.println("Context: " + parent.context());
+                System.out.println("Context: " + parentSpan.context());
 
-                final byte[] bytes = parent.context().traceId().getBytes(StandardCharsets.UTF_8);
+                final byte[] bytes = parentSpan.context().traceId().getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(200, bytes.length);
                 os.write(bytes);
             }
