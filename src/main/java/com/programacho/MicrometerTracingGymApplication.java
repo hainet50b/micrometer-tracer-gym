@@ -1,6 +1,9 @@
 package com.programacho;
 
 import brave.Tracing;
+import brave.baggage.BaggageField;
+import brave.baggage.BaggagePropagation;
+import brave.baggage.BaggagePropagationConfig;
 import brave.handler.SpanHandler;
 import brave.propagation.StrictCurrentTraceContext;
 import brave.sampler.Sampler;
@@ -37,7 +40,10 @@ public class MicrometerTracingGymApplication {
                 .supportsJoin(false)
                 .traceId128Bit(true)
                 .localServiceName("micrometer-tracing-gym")
-                .propagationFactory(new W3CPropagation())
+                .propagationFactory(BaggagePropagation.newFactoryBuilder(new W3CPropagation())
+                        .add(BaggagePropagationConfig.SingleBaggageField.remote(BaggageField.create("baggage.parent")))
+                        .build()
+                )
                 .sampler(Sampler.ALWAYS_SAMPLE)
                 .addSpanHandler(spanHandler)
                 .build();
@@ -51,6 +57,9 @@ public class MicrometerTracingGymApplication {
             try (OutputStream os = exchange.getResponseBody()) {
                 Span parent = bridgeTracer.nextSpan().name("function.parent");
                 try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(parent.start())) {
+                    bridgeTracer.createBaggage("baggage.parent", "value.parent");
+                    System.out.println("Baggage in scope: " + bridgeTracer.getBaggage("baggage.parent").get());
+
                     parent.tag("key.parent", "value.parent");
                     parent.event("event.parent1");
                     parent.event("event.parent2");
@@ -82,6 +91,9 @@ public class MicrometerTracingGymApplication {
                 } finally {
                     parent.end();
                 }
+
+                System.out.println("Baggage out of scope: " + bridgeTracer.getBaggage("baggage.parent").get());
+                System.out.println("Context: " + parent.context());
 
                 final byte[] bytes = parent.context().traceId().getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(200, bytes.length);
