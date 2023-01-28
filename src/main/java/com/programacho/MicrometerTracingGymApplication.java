@@ -31,12 +31,12 @@ public class MicrometerTracingGymApplication {
 
         SpanHandler spanHandler = ZipkinSpanHandler.create(AsyncReporter.create(URLConnectionSender.create("http://localhost:9411/api/v2/spans")));
 
-        StrictCurrentTraceContext braveContext = StrictCurrentTraceContext.create();
+        StrictCurrentTraceContext traceContext = StrictCurrentTraceContext.create();
 
-        BraveCurrentTraceContext bridgeContext = new BraveCurrentTraceContext(braveContext);
+        BraveCurrentTraceContext traceContextBridge = new BraveCurrentTraceContext(traceContext);
 
         Tracing tracing = Tracing.newBuilder()
-                .currentTraceContext(braveContext)
+                .currentTraceContext(traceContext)
                 .supportsJoin(false)
                 .traceId128Bit(true)
                 .localServiceName("micrometer-tracing-gym")
@@ -48,25 +48,25 @@ public class MicrometerTracingGymApplication {
                 .addSpanHandler(spanHandler)
                 .build();
 
-        brave.Tracer braveTracer = tracing.tracer();
+        brave.Tracer tracer = tracing.tracer();
 
-        Tracer bridgeTracer = new BraveTracer(braveTracer, bridgeContext, new BraveBaggageManager());
+        Tracer tracerBridge = new BraveTracer(tracer, traceContextBridge, new BraveBaggageManager());
 
-        final Random random = new Random();
+        Random random = new Random();
         server.createContext("/function", exchange -> {
             try (OutputStream os = exchange.getResponseBody()) {
-                Span parentSpan = bridgeTracer.nextSpan().name("function.parent");
-                try (Tracer.SpanInScope parentScope = bridgeTracer.withSpan(parentSpan.start())) {
-                    bridgeTracer.createBaggage("baggage.parent", "value.parent");
-                    System.out.println("Baggage in scope: " + bridgeTracer.getBaggage("baggage.parent").get());
+                Span parentSpan = tracerBridge.nextSpan().name("function.parent");
+                try (Tracer.SpanInScope parentScope = tracerBridge.withSpan(parentSpan.start())) {
+                    tracerBridge.createBaggage("baggage.parent", "value.parent");
+                    System.out.println("Baggage in scope: " + tracerBridge.getBaggage("baggage.parent").get());
 
                     parentSpan.tag("key.parent", "value.parent");
                     parentSpan.event("event.parent1");
                     parentSpan.event("event.parent2");
                     parentSpan.event("event.parent3");
 
-                    Span fooSpan = bridgeTracer.nextSpan(parentSpan).name("function.foo");
-                    try (Tracer.SpanInScope fooScope = bridgeTracer.withSpan(fooSpan.start())) {
+                    Span fooSpan = tracerBridge.nextSpan(parentSpan).name("function.foo");
+                    try (Tracer.SpanInScope fooScope = tracerBridge.withSpan(fooSpan.start())) {
                         fooSpan.tag("key.foo", "value.foo");
                         fooSpan.event("event.foo");
 
@@ -75,8 +75,8 @@ public class MicrometerTracingGymApplication {
                         fooSpan.end();
                     }
 
-                    Span barSpan = bridgeTracer.nextSpan(parentSpan).name("function.bar");
-                    try (Tracer.SpanInScope barScope = bridgeTracer.withSpan(barSpan.start())) {
+                    Span barSpan = tracerBridge.nextSpan(parentSpan).name("function.bar");
+                    try (Tracer.SpanInScope barScope = tracerBridge.withSpan(barSpan.start())) {
                         barSpan.tag("key.bar", "value.bar");
                         barSpan.event("event.bar");
 
@@ -92,7 +92,7 @@ public class MicrometerTracingGymApplication {
                     parentSpan.end();
                 }
 
-                System.out.println("Baggage out of scope: " + bridgeTracer.getBaggage("baggage.parent").get());
+                System.out.println("Baggage out of scope: " + tracerBridge.getBaggage("baggage.parent").get());
                 System.out.println("Context: " + parentSpan.context());
 
                 final byte[] bytes = parentSpan.context().traceId().getBytes(StandardCharsets.UTF_8);
