@@ -26,6 +26,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 public class MicrometerTracingGymApplication {
+
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 
